@@ -1,3 +1,4 @@
+<!--- SPDX-License-Identifier: Apache-2.0 -->
 # Test Coverage Report (ONNX Core Operators)
 ## Outlines
 * [Node Test Coverage](#node-test-coverage)
@@ -5,7 +6,7 @@
 * [Overall Test Coverage](#overall-test-coverage)
 # Node Test Coverage
 ## Summary
-Node tests have covered 147/161 (91.30%, 5 generators excluded) common operators.
+Node tests have covered 148/162 (91.36%, 5 generators excluded) common operators.
 
 Node tests have covered 0/0 (N/A) experimental operators.
 
@@ -2019,7 +2020,7 @@ expect(node, inputs=[x], outputs=[y],
 
 
 ### Conv
-There are 2 test cases, listed as following:
+There are 3 test cases, listed as following:
 <details>
 <summary>conv</summary>
 
@@ -2065,6 +2066,37 @@ y_without_padding = np.array([[[[54., 63., 72.],  # (1, 1, 3, 3) output tensor
                                 [144., 153., 162.]]]]).astype(np.float32)
 expect(node_without_padding, inputs=[x, W], outputs=[y_without_padding],
        name='test_basic_conv_without_padding')
+```
+
+</details>
+<details>
+<summary>conv_with_autopad_same</summary>
+
+```python
+
+x = np.array([[[[0., 1., 2., 3., 4.],  # (1, 1, 5, 5) input tensor
+                [5., 6., 7., 8., 9.],
+                [10., 11., 12., 13., 14.],
+                [15., 16., 17., 18., 19.],
+                [20., 21., 22., 23., 24.]]]]).astype(np.float32)
+W = np.array([[[[1., 1., 1.],  # (1, 1, 3, 3) tensor for convolution weights
+                [1., 1., 1.],
+                [1., 1., 1.]]]]).astype(np.float32)
+
+# Convolution with auto_pad='SAME_LOWER' and strides=2
+node = onnx.helper.make_node(
+    'Conv',
+    inputs=['x', 'W'],
+    outputs=['y'],
+    auto_pad='SAME_LOWER',
+    kernel_shape=[3, 3],
+    strides=[2, 2],
+)
+y = np.array([[[[12., 27., 24.],
+             [63., 108., 81.],
+             [72., 117., 84.]]]]).astype(np.float32)
+expect(node, inputs=[x, W], outputs=[y],
+       name='test_conv_with_autopad_same')
 ```
 
 </details>
@@ -2172,7 +2204,7 @@ expect(convinteger_node_with_padding, inputs=[x, w, x_zero_point], outputs=[y_wi
 
 
 ### ConvTranspose
-There are 6 test cases, listed as following:
+There are 7 test cases, listed as following:
 <details>
 <summary>convtranspose</summary>
 
@@ -2393,6 +2425,41 @@ node = onnx.helper.make_node(
 )
 expect(node, inputs=[x, W], outputs=[y],
        name='test_convtranspose_kernel_shape')
+```
+
+</details>
+<details>
+<summary>convtranspose_autopad_same</summary>
+
+```python
+x = np.array([[[[0., 1., 2.],  # (1, 1, 3, 3)
+                [3., 4., 5.],
+                [6., 7., 8.]]]]).astype(np.float32)
+
+W = np.array([[[[1., 1., 1.],  # (1, 2, 3, 3)
+                [1., 1., 1.],
+                [1., 1., 1.]],
+               [[1., 1., 1.],
+                [1., 1., 1.],
+                [1., 1., 1.]]]]).astype(np.float32)
+
+node = onnx.helper.make_node("ConvTranspose", ["X", "W"], ["Y"], auto_pad="SAME_LOWER", strides=[2, 2])
+
+y = np.array([[[[0., 0., 1., 1., 3., 2.],
+                [0., 0., 1., 1., 3., 2.],
+                [3., 3., 8., 5., 12., 7.],
+                [3., 3., 7., 4., 9., 5.],
+                [9., 9., 20., 11., 24., 13.],
+                [6., 6., 13., 7., 15., 8.]],
+
+               [[0., 0., 1., 1., 3., 2.],
+                [0., 0., 1., 1., 3., 2.],
+                [3., 3., 8., 5., 12., 7.],
+                [3., 3., 7., 4., 9., 5.],
+                [9., 9., 20., 11., 24., 13.],
+                [6., 6., 13., 7., 15., 8.]]]]).astype(np.float32)
+
+expect(node, inputs=[x, W], outputs=[y], name='test_convtranspose_autopad_same')
 ```
 
 </details>
@@ -3594,7 +3661,36 @@ expect(node, inputs=[x], outputs=[y],
 
 
 ### GRU
-There are 3 test cases, listed as following:
+There are 4 test cases, listed as following:
+<details>
+<summary>batchwise</summary>
+
+```python
+input = np.array([[[1., 2.]], [[3., 4.]], [[5., 6.]]]).astype(np.float32)
+
+input_size = 2
+hidden_size = 6
+number_of_gates = 3
+weight_scale = 0.2
+layout = 1
+
+node = onnx.helper.make_node(
+    'GRU',
+    inputs=['X', 'W', 'R'],
+    outputs=['Y', 'Y_h'],
+    hidden_size=hidden_size,
+    layout=layout
+)
+
+W = weight_scale * np.ones((1, number_of_gates * hidden_size, input_size)).astype(np.float32)
+R = weight_scale * np.ones((1, number_of_gates * hidden_size, hidden_size)).astype(np.float32)
+
+gru = GRU_Helper(X=input, W=W, R=R, layout=layout)
+Y, Y_h = gru.step()
+expect(node, inputs=[input, W, R], outputs=[Y.astype(np.float32), Y_h.astype(np.float32)], name='test_gru_batchwise')
+```
+
+</details>
 <details>
 <summary>defaults</summary>
 
@@ -3609,7 +3705,7 @@ number_of_gates = 3
 node = onnx.helper.make_node(
     'GRU',
     inputs=['X', 'W', 'R'],
-    outputs=['', 'Y'],
+    outputs=['', 'Y_h'],
     hidden_size=hidden_size
 )
 
@@ -3637,7 +3733,7 @@ number_of_gates = 3
 node = onnx.helper.make_node(
     'GRU',
     inputs=['X', 'W', 'R', 'B'],
-    outputs=['', 'Y'],
+    outputs=['', 'Y_h'],
     hidden_size=hidden_size
 )
 
@@ -3669,7 +3765,7 @@ number_of_gates = 3
 node = onnx.helper.make_node(
     'GRU',
     inputs=['X', 'W', 'R', 'B'],
-    outputs=['', 'Y'],
+    outputs=['', 'Y_h'],
     hidden_size=hidden_size
 )
 
@@ -4528,7 +4624,7 @@ expect(node, inputs=[x], outputs=[y],
 
 
 ### Identity
-There are 1 test cases, listed as following:
+There are 2 test cases, listed as following:
 <details>
 <summary>identity</summary>
 
@@ -4546,6 +4642,31 @@ data = np.array([[[
 
 expect(node, inputs=[data], outputs=[data],
        name='test_identity')
+```
+
+</details>
+<details>
+<summary>sequence</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Identity',
+    inputs=['x'],
+    outputs=['y'],
+)
+
+data = [
+    np.array([[[
+        [1, 2],
+        [3, 4],
+    ]]], dtype=np.float32),
+    np.array([[[
+        [2, 3],
+        [1, 5],
+    ]]], dtype=np.float32)]
+
+expect(node, inputs=[data], outputs=[data], name='test_identity_sequence',
+    opset_imports=[onnx.helper.make_opsetid("", 13)])
 ```
 
 </details>
@@ -4869,7 +4990,36 @@ expect(node, inputs=[x], outputs=[y],
 
 
 ### LSTM
-There are 3 test cases, listed as following:
+There are 4 test cases, listed as following:
+<details>
+<summary>batchwise</summary>
+
+```python
+input = np.array([[[1., 2.]], [[3., 4.]], [[5., 6.]]]).astype(np.float32)
+
+input_size = 2
+hidden_size = 7
+weight_scale = 0.3
+number_of_gates = 4
+layout = 1
+
+node = onnx.helper.make_node(
+    'LSTM',
+    inputs=['X', 'W', 'R'],
+    outputs=['Y', 'Y_h'],
+    hidden_size=hidden_size,
+    layout=layout
+)
+
+W = weight_scale * np.ones((1, number_of_gates * hidden_size, input_size)).astype(np.float32)
+R = weight_scale * np.ones((1, number_of_gates * hidden_size, hidden_size)).astype(np.float32)
+
+lstm = LSTM_Helper(X=input, W=W, R=R, layout=layout)
+Y, Y_h = lstm.step()
+expect(node, inputs=[input, W, R], outputs=[Y.astype(np.float32), Y_h.astype(np.float32)], name='test_lstm_batchwise')
+```
+
+</details>
 <details>
 <summary>defaults</summary>
 
@@ -4884,7 +5034,7 @@ number_of_gates = 4
 node = onnx.helper.make_node(
     'LSTM',
     inputs=['X', 'W', 'R'],
-    outputs=['', 'Y'],
+    outputs=['', 'Y_h'],
     hidden_size=hidden_size
 )
 
@@ -4912,7 +5062,7 @@ number_of_gates = 4
 node = onnx.helper.make_node(
     'LSTM',
     inputs=['X', 'W', 'R', 'B'],
-    outputs=['', 'Y'],
+    outputs=['', 'Y_h'],
     hidden_size=hidden_size
 )
 
@@ -4945,7 +5095,7 @@ number_of_peepholes = 3
 node = onnx.helper.make_node(
     'LSTM',
     inputs=['X', 'W', 'R', 'B', 'sequence_lens', 'initial_h', 'initial_c', 'P'],
-    outputs=['', 'Y'],
+    outputs=['', 'Y_h'],
     hidden_size=hidden_size
 )
 
@@ -6238,10 +6388,9 @@ node = onnx.helper.make_node(
     outputs=['z'],
 )
 
-x = np.arange(0, 30).reshape([3, 2, 5])
-y = np.array([7])
+x = np.arange(0, 30).reshape([3, 2, 5]).astype(np.int32)
+y = np.array([7]).astype(np.int32)
 z = np.mod(x, y)
-z
 #   array([[[0, 1, 2, 3, 4],
 #     [5, 6, 0, 1, 2]],
 
@@ -6692,7 +6841,7 @@ node = onnx.helper.make_node(
 N, C = 3, 5
 np.random.seed(0)
 input = np.random.rand(N, C).astype(np.float32)
-target = np.random.randint(0, high=C, size=(N, ))
+target = np.random.randint(0, high=C, size=(N, )).astype(np.int64)
 
 negative_log_likelihood_loss = compute_negative_log_likelihood_loss(input, target, weight=None, reduction=reduction)
 
@@ -6716,7 +6865,7 @@ node = onnx.helper.make_node(
 N, C, d1 = 3, 5, 2
 np.random.seed(0)
 input = np.random.rand(N, C, d1).astype(np.float32)
-target = np.random.randint(0, high=C, size=(N, d1))
+target = np.random.randint(0, high=C, size=(N, d1)).astype(np.int64)
 
 negative_log_likelihood_loss = compute_negative_log_likelihood_loss(input, target, weight=None, reduction=reduction)
 
@@ -6742,7 +6891,7 @@ node = onnx.helper.make_node(
 N, C, d1 = 3, 5, 2
 np.random.seed(0)
 input = np.random.rand(N, C, d1).astype(np.float32)
-target = np.random.randint(0, high=C, size=(N, d1))
+target = np.random.randint(0, high=C, size=(N, d1)).astype(np.int64)
 target[0][0] = np.int64(1)
 
 negative_log_likelihood_loss = compute_negative_log_likelihood_loss(input, target, weight=None, reduction=reduction, ignore_index=ignore_index)
@@ -6769,7 +6918,7 @@ node = onnx.helper.make_node(
 N, C, dim1 = 3, 5, 6
 np.random.seed(0)
 input = np.random.rand(N, C, dim1).astype(np.float32)
-target = np.random.randint(0, high=C, size=(N, dim1))
+target = np.random.randint(0, high=C, size=(N, dim1)).astype(np.int64)
 target[0][0] = -1
 weight = np.random.rand(C).astype(np.float32)
 
@@ -6799,7 +6948,7 @@ node = onnx.helper.make_node(
 N, C, d1 = 3, 5, 2
 np.random.seed(0)
 input = np.random.rand(N, C, d1).astype(np.float32)
-target = np.random.randint(0, high=C, size=(N, d1))
+target = np.random.randint(0, high=C, size=(N, d1)).astype(np.int64)
 weight = np.random.rand(C).astype(np.float32)
 
 negative_log_likelihood_loss = compute_negative_log_likelihood_loss(input, target, weight=weight, reduction=reduction)
@@ -6826,7 +6975,7 @@ node = onnx.helper.make_node(
 N, C, d1 = 3, 5, 2
 np.random.seed(0)
 input = np.random.rand(N, C, d1).astype(np.float32)
-target = np.random.randint(0, high=C, size=(N, d1))
+target = np.random.randint(0, high=C, size=(N, d1)).astype(np.int64)
 target[0][0] = np.int64(1)
 weight = np.random.rand(C).astype(np.float32)
 
@@ -6852,7 +7001,7 @@ node = onnx.helper.make_node(
 N, C, dim1, dim2 = 3, 5, 6, 6
 np.random.seed(0)
 input = np.random.rand(N, C, dim1, dim2).astype(np.float32)
-target = np.random.randint(0, high=C, size=(N, dim1, dim2))
+target = np.random.randint(0, high=C, size=(N, dim1, dim2)).astype(np.int64)
 
 negative_log_likelihood_loss = compute_negative_log_likelihood_loss(input, target, weight=None, reduction=reduction)
 
@@ -6878,7 +7027,7 @@ node = onnx.helper.make_node(
 N, C, dim1, dim2 = 3, 5, 6, 6
 np.random.seed(0)
 input = np.random.rand(N, C, dim1, dim2).astype(np.float32)
-target = np.random.randint(0, high=C, size=(N, dim1, dim2))
+target = np.random.randint(0, high=C, size=(N, dim1, dim2)).astype(np.int64)
 target[0][0][0] = np.int64(1)
 
 negative_log_likelihood_loss = compute_negative_log_likelihood_loss(input, target, reduction=reduction, ignore_index=ignore_index)
@@ -6903,7 +7052,7 @@ node = onnx.helper.make_node(
 N, C, dim1, dim2 = 3, 5, 6, 6
 np.random.seed(0)
 input = np.random.rand(N, C, dim1, dim2).astype(np.float32)
-target = np.random.randint(0, high=C, size=(N, dim1, dim2))
+target = np.random.randint(0, high=C, size=(N, dim1, dim2)).astype(np.int64)
 
 negative_log_likelihood_loss = compute_negative_log_likelihood_loss(input, target, weight=None, reduction=reduction)
 
@@ -6951,7 +7100,7 @@ node = onnx.helper.make_node(
 N, C, dim1, dim2 = 3, 5, 6, 6
 np.random.seed(0)
 input = np.random.rand(N, C, dim1, dim2).astype(np.float32)
-target = np.random.randint(0, high=C, size=(N, dim1, dim2))
+target = np.random.randint(0, high=C, size=(N, dim1, dim2)).astype(np.int64)
 weight = np.random.rand(C).astype(np.float32)
 
 negative_log_likelihood_loss = compute_negative_log_likelihood_loss(input, target, weight=weight, reduction=reduction)
@@ -6976,7 +7125,7 @@ node = onnx.helper.make_node(
 N, C, dim1, dim2 = 3, 5, 6, 6
 np.random.seed(0)
 input = np.random.rand(N, C, dim1, dim2).astype(np.float32)
-target = np.random.randint(0, high=C, size=(N, dim1, dim2))
+target = np.random.randint(0, high=C, size=(N, dim1, dim2)).astype(np.int64)
 weight = np.random.rand(C).astype(np.float32)
 
 negative_log_likelihood_loss = compute_negative_log_likelihood_loss(input, target, weight=weight, reduction=reduction)
@@ -7001,7 +7150,7 @@ node = onnx.helper.make_node(
 N, C, dim1, dim2 = 3, 5, 6, 6
 np.random.seed(0)
 input = np.random.rand(N, C, dim1, dim2).astype(np.float32)
-target = np.random.randint(0, high=C, size=(N, dim1, dim2))
+target = np.random.randint(0, high=C, size=(N, dim1, dim2)).astype(np.int64)
 weight = np.random.rand(C).astype(np.float32)
 
 negative_log_likelihood_loss = compute_negative_log_likelihood_loss(input, target, weight=weight, reduction=reduction)
@@ -7028,7 +7177,7 @@ node = onnx.helper.make_node(
 N, C, dim1, dim2 = 3, 5, 6, 6
 np.random.seed(0)
 input = np.random.rand(N, C, dim1, dim2).astype(np.float32)
-target = np.random.randint(0, high=C, size=(N, dim1, dim2))
+target = np.random.randint(0, high=C, size=(N, dim1, dim2)).astype(np.int64)
 target[0][0][0] = np.int64(0)
 weight = np.random.rand(C).astype(np.float32)
 
@@ -7056,7 +7205,7 @@ node = onnx.helper.make_node(
 N, C, dim1, dim2, dim3 = 3, 5, 6, 6, 5
 np.random.seed(0)
 input = np.random.rand(N, C, dim1, dim2, dim3).astype(np.float32)
-target = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3))
+target = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3)).astype(np.int64)
 target[0][0][0][0] = -5
 
 negative_log_likelihood_loss = compute_negative_log_likelihood_loss(input,
@@ -7116,7 +7265,7 @@ node = onnx.helper.make_node(
 N, C, dim1, dim2, dim3, dim4, dim5 = 3, 5, 6, 6, 5, 3, 4
 np.random.seed(0)
 input = np.random.rand(N, C, dim1, dim2, dim3, dim4, dim5).astype(np.float32)
-target = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3, dim4, dim5))
+target = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3, dim4, dim5)).astype(np.int64)
 weight = np.random.rand(C).astype(np.float32)
 
 negative_log_likelihood_loss = compute_negative_log_likelihood_loss(input,
@@ -7144,7 +7293,7 @@ node = onnx.helper.make_node(
 N, C, dim1, dim2, dim3, dim4, dim5 = 3, 5, 6, 6, 5, 3, 4
 np.random.seed(0)
 input = np.random.rand(N, C, dim1, dim2, dim3, dim4, dim5).astype(np.float32)
-target = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3, dim4, dim5))
+target = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3, dim4, dim5)).astype(np.int64)
 
 negative_log_likelihood_loss = compute_negative_log_likelihood_loss(input,
                                                                     target,
@@ -7424,7 +7573,7 @@ node = onnx.helper.make_node(
 )
 
 condition = np.array([[1, 0], [1, 1]], dtype=np.bool)
-result = np.array((np.nonzero(condition)))  # expected output [[0, 1, 1], [0, 0, 1]]
+result = np.array(np.nonzero(condition), dtype=np.int64)  # expected output [[0, 1, 1], [0, 0, 1]]
 expect(node, inputs=[condition], outputs=[result],
        name='test_nonzero_example')
 ```
@@ -8022,7 +8171,35 @@ expect(node, inputs=[x, y_scale, y_zero_point], outputs=[y],
 
 
 ### RNN
-There are 3 test cases, listed as following:
+There are 4 test cases, listed as following:
+<details>
+<summary>batchwise</summary>
+
+```python
+input = np.array([[[1., 2.]], [[3., 4.]], [[5., 6.]]]).astype(np.float32)
+
+input_size = 2
+hidden_size = 4
+weight_scale = 0.5
+layout = 1
+
+node = onnx.helper.make_node(
+    'RNN',
+    inputs=['X', 'W', 'R'],
+    outputs=['Y', 'Y_h'],
+    hidden_size=hidden_size,
+    layout=layout
+)
+
+W = weight_scale * np.ones((1, hidden_size, input_size)).astype(np.float32)
+R = weight_scale * np.ones((1, hidden_size, hidden_size)).astype(np.float32)
+
+rnn = RNN_Helper(X=input, W=W, R=R, layout=layout)
+Y, Y_h = rnn.step()
+expect(node, inputs=[input, W, R], outputs=[Y.astype(np.float32), Y_h.astype(np.float32)], name='test_simple_rnn_batchwise')
+```
+
+</details>
 <details>
 <summary>defaults</summary>
 
@@ -8036,7 +8213,7 @@ weight_scale = 0.1
 node = onnx.helper.make_node(
     'RNN',
     inputs=['X', 'W', 'R'],
-    outputs=['', 'Y'],
+    outputs=['', 'Y_h'],
     hidden_size=hidden_size
 )
 
@@ -8063,7 +8240,7 @@ weight_scale = 0.1
 node = onnx.helper.make_node(
     'RNN',
     inputs=['X', 'W', 'R', 'B'],
-    outputs=['', 'Y'],
+    outputs=['', 'Y_h'],
     hidden_size=hidden_size
 )
 
@@ -8095,7 +8272,7 @@ hidden_size = 5
 node = onnx.helper.make_node(
     'RNN',
     inputs=['X', 'W', 'R', 'B'],
-    outputs=['', 'Y'],
+    outputs=['', 'Y_h'],
     hidden_size=hidden_size
 )
 
@@ -9539,7 +9716,33 @@ expect(node, inputs=[x], outputs=[y],
 
 
 ### Reshape
-There are 1 test cases, listed as following:
+There are 2 test cases, listed as following:
+<details>
+<summary>allowzero</summary>
+
+```python
+original_shape = [0, 3, 4]
+test_cases = {
+    'allowzero_reordered': np.array([3, 4, 0], dtype=np.int64),
+}
+data = np.random.random_sample(original_shape).astype(np.float32)
+
+for test_name, shape in test_cases.items():
+    node = onnx.helper.make_node(
+        'Reshape',
+        inputs=['data', 'shape'],
+        outputs=['reshaped'],
+        allowzero=1,  # if allowzero=1, final shape = (3, 4, 0)
+                      # if allowzero=0, final shape = (3, 4, 4)
+    )
+
+    reshaped = reshape_reference_implementation(data, shape, allowzero=1)
+
+    expect(node, inputs=[data, shape], outputs=[reshaped],
+           name='test_reshape_' + test_name)
+```
+
+</details>
 <details>
 <summary>reshape</summary>
 
@@ -10971,13 +11174,13 @@ There are 1 test cases, listed as following:
 
 ```python
 test_cases = {
-    'at_back': [np.array([10, 11, 12])],
-    'at_front': [np.array([-2, -1, 0]), np.array([0])]
+    'at_back': [np.array([10, 11, 12]).astype(np.int64)],
+    'at_front': [np.array([-2, -1, 0]), np.array([0]).astype(np.int64)]
 }
-sequence = [np.array([1, 2, 3, 4]), np.array([5, 6, 7]), np.array([8, 9])]
+sequence = [np.array([1, 2, 3, 4]).astype(np.int64), np.array([5, 6, 7]).astype(np.int64), np.array([8, 9]).astype(np.int64)]
 
 for test_name, test_inputs in test_cases.items():
-    tensor = test_inputs[0]
+    tensor = test_inputs[0].astype(np.int64)
 
     if len(test_inputs) > 1:
         node = onnx.helper.make_node(
@@ -11328,7 +11531,7 @@ x = np.random.randn(20, 10, 5).astype(np.float32)
 starts = np.array([20, 10, 4], dtype=np.int64)
 ends = np.array([0, 0, 1], dtype=np.int64)
 axes = np.array([0, 1, 2], dtype=np.int64)
-steps = np.array([-1, -3, -2])
+steps = np.array([-1, -3, -2]).astype(np.int64)
 y = x[20:0:-1, 10:0:-3, 4:1:-2]
 
 expect(node, inputs=[x, starts, ends, axes, steps], outputs=[y],
@@ -11491,7 +11694,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 N, C, dim1 = 3, 5, 6
 np.random.seed(0)
 x = np.random.rand(N, C, dim1).astype(np.float32)
-labels = np.random.randint(0, high=C, size=(N, dim1))
+labels = np.random.randint(0, high=C, size=(N, dim1)).astype(np.int64)
 labels[0][0] = -1
 weight = np.random.rand(C).astype(np.float32)
 
@@ -11521,7 +11724,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 N, C, dim1 = 3, 5, 6
 np.random.seed(0)
 x = np.random.rand(N, C, dim1).astype(np.float32)
-labels = np.random.randint(0, high=C, size=(N, dim1))
+labels = np.random.randint(0, high=C, size=(N, dim1)).astype(np.int64)
 labels[0][0] = -1
 weight = np.random.rand(C).astype(np.float32)
 
@@ -11552,7 +11755,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 N, C, dim1, dim2, dim3 = 3, 5, 6, 6, 5
 np.random.seed(0)
 x = np.random.rand(N, C, dim1, dim2, dim3).astype(np.float32)
-labels = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3))
+labels = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3)).astype(np.int64)
 labels[0][0][0][0] = -5
 
 sce = softmaxcrossentropy(x,
@@ -11580,7 +11783,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 N, C, dim1, dim2, dim3 = 3, 5, 6, 6, 5
 np.random.seed(0)
 x = np.random.rand(N, C, dim1, dim2, dim3).astype(np.float32)
-labels = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3))
+labels = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3)).astype(np.int64)
 labels[0][0][0][0] = -5
 
 loss, log_prob = softmaxcrossentropy(x,
@@ -11609,7 +11812,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 N, C = 3, 5
 np.random.seed(0)
 x = np.random.rand(N, C).astype(np.float32)
-labels = np.random.randint(0, high=C, size=(N))
+labels = np.random.randint(0, high=C, size=(N)).astype(np.int64)
 labels[0] = 10
 weight = np.random.rand(C).astype(np.float32)
 
@@ -11639,7 +11842,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 N, C = 3, 5
 np.random.seed(0)
 x = np.random.rand(N, C).astype(np.float32)
-labels = np.random.randint(0, high=C, size=(N))
+labels = np.random.randint(0, high=C, size=(N)).astype(np.int64)
 labels[0] = 10
 weight = np.random.rand(C).astype(np.float32)
 
@@ -11668,7 +11871,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 N, C, dim1, dim2, dim3, dim4, dim5 = 3, 5, 6, 6, 5, 3, 4
 np.random.seed(0)
 x = np.random.rand(N, C, dim1, dim2, dim3, dim4, dim5).astype(np.float32)
-labels = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3, dim4, dim5))
+labels = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3, dim4, dim5)).astype(np.int64)
 weight = np.random.rand(C).astype(np.float32)
 
 sce = softmaxcrossentropy(x,
@@ -11694,7 +11897,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 N, C, dim1, dim2, dim3, dim4, dim5 = 3, 5, 6, 6, 5, 3, 4
 np.random.seed(0)
 x = np.random.rand(N, C, dim1, dim2, dim3, dim4, dim5).astype(np.float32)
-labels = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3, dim4, dim5))
+labels = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3, dim4, dim5)).astype(np.int64)
 weight = np.random.rand(C).astype(np.float32)
 
 loss, log_prob = softmaxcrossentropy(x,
@@ -11721,7 +11924,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 N, C, dim1, dim2, dim3, dim4, dim5 = 3, 5, 6, 6, 5, 3, 4
 np.random.seed(0)
 x = np.random.rand(N, C, dim1, dim2, dim3, dim4, dim5).astype(np.float32)
-labels = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3, dim4, dim5))
+labels = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3, dim4, dim5)).astype(np.int64)
 
 sce = softmaxcrossentropy(x,
                         labels,
@@ -11745,7 +11948,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 N, C, dim1, dim2, dim3, dim4, dim5 = 3, 5, 6, 6, 5, 3, 4
 np.random.seed(0)
 x = np.random.rand(N, C, dim1, dim2, dim3, dim4, dim5).astype(np.float32)
-labels = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3, dim4, dim5))
+labels = np.random.randint(0, high=C, size=(N, dim1, dim2, dim3, dim4, dim5)).astype(np.int64)
 
 loss, log_prob = softmaxcrossentropy(x,
                         labels,
@@ -11772,7 +11975,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, ))
+labels = np.random.randint(0, high=5, size=(3, )).astype(np.int64)
 
 # Compute SoftmaxCrossEntropyLoss
 sce = softmaxcrossentropy(x, labels)
@@ -11798,7 +12001,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5, 2).astype(np.float32)
-y = np.random.randint(0, high=5, size=(3, 2))
+y = np.random.randint(0, high=5, size=(3, 2)).astype(np.int64)
 
 # Compute SoftmaxCrossEntropyLoss
 sce = softmaxcrossentropy(x, y)
@@ -11824,7 +12027,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5, 2).astype(np.float32)
-y = np.random.randint(0, high=5, size=(3, 2))
+y = np.random.randint(0, high=5, size=(3, 2)).astype(np.int64)
 
 # Compute SoftmaxCrossEntropyLoss
 loss, log_prob = softmaxcrossentropy(x, y, get_log_prob=True)
@@ -11850,7 +12053,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, ))
+labels = np.random.randint(0, high=5, size=(3, )).astype(np.int64)
 
 # Compute SoftmaxCrossEntropyLoss
 loss, log_prob = softmaxcrossentropy(x, labels, get_log_prob=True)
@@ -11878,7 +12081,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, ))
+labels = np.random.randint(0, high=5, size=(3, )).astype(np.int64)
 labels[0] = np.int64(2)
 
 # Compute SoftmaxCrossEntropyLoss
@@ -11907,7 +12110,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5, 2).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, 2))
+labels = np.random.randint(0, high=5, size=(3, 2)).astype(np.int64)
 labels[0][0] = np.int64(2)
 
 # Compute SoftmaxCrossEntropyLoss
@@ -11936,7 +12139,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5, 2).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, 2))
+labels = np.random.randint(0, high=5, size=(3, 2)).astype(np.int64)
 labels[0][0] = np.int64(2)
 
 # Compute SoftmaxCrossEntropyLoss
@@ -11965,7 +12168,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5, 2, 7).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, 2, 7))
+labels = np.random.randint(0, high=5, size=(3, 2, 7)).astype(np.int64)
 labels[0][0][0] = np.int64(2)
 
 # Compute SoftmaxCrossEntropyLoss
@@ -11994,7 +12197,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5, 2, 7).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, 2, 7))
+labels = np.random.randint(0, high=5, size=(3, 2, 7)).astype(np.int64)
 labels[0][0][0] = np.int64(2)
 
 # Compute SoftmaxCrossEntropyLoss
@@ -12023,7 +12226,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, ))
+labels = np.random.randint(0, high=5, size=(3, )).astype(np.int64)
 labels[0] = np.int64(2)
 
 # Compute SoftmaxCrossEntropyLoss
@@ -12050,7 +12253,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, ))
+labels = np.random.randint(0, high=5, size=(3, )).astype(np.int64)
 weights = np.array([0.9, 0.7, 0.8, 0.9, 0.9], dtype=np.float32)
 
 # Compute SoftmaxCrossEntropyLoss
@@ -12079,7 +12282,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, ))
+labels = np.random.randint(0, high=5, size=(3, )).astype(np.int64)
 labels[0] = np.int64(0)
 weights = np.array([0.9, 0.7, 0.8, 0.9, 0.9], dtype=np.float32)
 
@@ -12109,7 +12312,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5, 2).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, 2))
+labels = np.random.randint(0, high=5, size=(3, 2)).astype(np.int64)
 labels[0][0] = np.int64(1)
 weights = np.array([0.2, 0.3, 0.6, 0.1, 0.5], dtype=np.float32)
 
@@ -12139,7 +12342,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5, 2).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, 2))
+labels = np.random.randint(0, high=5, size=(3, 2)).astype(np.int64)
 labels[0][0] = np.int64(1)
 weights = np.array([0.2, 0.3, 0.6, 0.1, 0.5], dtype=np.float32)
 
@@ -12169,7 +12372,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5, 2, 7).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, 2, 7))
+labels = np.random.randint(0, high=5, size=(3, 2, 7)).astype(np.int64)
 labels[0][0][0] = np.int64(2)
 weights = np.array([0.2, 0.3, 0.6, 0.1, 0.5], dtype=np.float32)
 
@@ -12199,7 +12402,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5, 2, 7).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, 2, 7))
+labels = np.random.randint(0, high=5, size=(3, 2, 7)).astype(np.int64)
 labels[0][0][0] = np.int64(2)
 weights = np.array([0.2, 0.3, 0.6, 0.1, 0.5], dtype=np.float32)
 
@@ -12229,7 +12432,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, ))
+labels = np.random.randint(0, high=5, size=(3, )).astype(np.int64)
 labels[0] = np.int64(0)
 weights = np.array([0.9, 0.7, 0.8, 0.9, 0.9], dtype=np.float32)
 
@@ -12257,7 +12460,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, ))
+labels = np.random.randint(0, high=5, size=(3, )).astype(np.int64)
 weights = np.array([0.9, 0.7, 0.8, 0.9, 0.9], dtype=np.float32)
 
 # Compute SoftmaxCrossEntropyLoss
@@ -12284,7 +12487,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, ))
+labels = np.random.randint(0, high=5, size=(3, )).astype(np.int64)
 
 # Compute SoftmaxCrossEntropyLoss
 sce = softmaxcrossentropy(x, labels, reduction='none')
@@ -12310,7 +12513,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, ))
+labels = np.random.randint(0, high=5, size=(3, )).astype(np.int64)
 
 # Compute SoftmaxCrossEntropyLoss
 loss, log_prob = softmaxcrossentropy(x, labels, reduction='none', get_log_prob=True)
@@ -12336,7 +12539,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, ))
+labels = np.random.randint(0, high=5, size=(3, )).astype(np.int64)
 weights = np.array([0.9, 0.7, 0.8, 0.9, 0.9], dtype=np.float32)
 
 # Compute SoftmaxCrossEntropyLoss
@@ -12363,7 +12566,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, ))
+labels = np.random.randint(0, high=5, size=(3, )).astype(np.int64)
 weights = np.array([0.9, 0.7, 0.8, 0.9, 0.9], dtype=np.float32)
 
 # Compute SoftmaxCrossEntropyLoss
@@ -12390,7 +12593,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, ))
+labels = np.random.randint(0, high=5, size=(3, )).astype(np.int64)
 
 # Compute SoftmaxCrossEntropyLoss
 sce = softmaxcrossentropy(x, labels, reduction='sum')
@@ -12416,7 +12619,7 @@ node = onnx.helper.make_node('SoftmaxCrossEntropyLoss',
 # Define operator inputs.
 np.random.seed(0)
 x = np.random.rand(3, 5).astype(np.float32)
-labels = np.random.randint(0, high=5, size=(3, ))
+labels = np.random.randint(0, high=5, size=(3, )).astype(np.int64)
 
 # Compute SoftmaxCrossEntropyLoss
 loss, log_prob = softmaxcrossentropy(x, labels, reduction='sum', get_log_prob=True)
@@ -13375,6 +13578,515 @@ expect(node, inputs=[data], outputs=[transposed],
 </details>
 
 
+### Trilu
+There are 18 test cases, listed as following:
+<details>
+<summary>tril</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x'],
+    outputs=['y'],
+    upper=0,
+)
+
+x = np.random.randint(10, size=(4, 5)).astype(np.int64)
+# X:
+#  [[4, 7, 3, 7, 9],
+#   [1, 2, 8, 6, 9],
+#   [9, 4, 1, 8, 7],
+#   [4, 3, 4, 2, 4]]
+# expect result:
+#  [[4, 0, 0, 0, 0],
+#   [1, 2, 0, 0, 0],
+#   [9, 4, 1, 0, 0],
+#   [4, 3, 4, 2, 0]]
+y = tril_reference_implementation(x)
+expect(node, inputs=[x], outputs=[y], name='test_tril')
+```
+
+</details>
+<details>
+<summary>tril_neg</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x', 'k'],
+    outputs=['y'],
+    upper=0,
+)
+
+x = np.random.randint(10, size=(4, 5)).astype(np.int64)
+k = np.array(-1).astype(np.int64)
+# X:
+#  [[4, 7, 3, 7, 9],
+#   [1, 2, 8, 6, 9],
+#   [9, 4, 1, 8, 7],
+#   [4, 3, 4, 2, 4]]
+# expect result:
+#  [[0, 0, 0, 0, 0],
+#   [1, 0, 0, 0, 0],
+#   [9, 4, 0, 0, 0],
+#   [4, 3, 4, 0, 0]]
+y = tril_reference_implementation(x, int(k))
+expect(node, inputs=[x, k], outputs=[y], name='test_tril_neg')
+```
+
+</details>
+<details>
+<summary>tril_one_row</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x'],
+    outputs=['y'],
+    upper=0,
+)
+
+x = np.random.randint(10, size=(3, 1, 5)).astype(np.int64)
+# X:
+# [[[6, 2, 4, 1, 6]],
+#
+#  [[8, 3, 8, 7, 0]],
+#
+#  [[2, 2, 9, 5, 9]]]
+# expect result:
+# [[[6, 0, 0, 0, 0]],
+#
+#  [[8, 0, 0, 0, 0]],
+#
+#  [[2, 0, 0, 0, 0]]]
+y = tril_reference_implementation(x)
+expect(node, inputs=[x], outputs=[y], name='test_tril_one_row_neg')
+```
+
+</details>
+<details>
+<summary>tril_out_neg</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x', 'k'],
+    outputs=['y'],
+    upper=0,
+)
+
+x = np.random.randint(10, size=(4, 5)).astype(np.int64)
+k = np.array(-7).astype(np.int64)
+# X:
+#  [[4, 7, 3, 7, 9],
+#   [1, 2, 8, 6, 9],
+#   [9, 4, 1, 8, 7],
+#   [4, 3, 4, 2, 4]]
+# expect result:
+#  [[0, 0, 0, 0, 0],
+#   [0, 0, 0, 0, 0],
+#   [0, 0, 0, 0, 0],
+#   [0, 0, 0, 0, 0]]
+y = tril_reference_implementation(x, int(k))
+expect(node, inputs=[x, k], outputs=[y], name='test_tril_out_neg')
+```
+
+</details>
+<details>
+<summary>tril_out_pos</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x', 'k'],
+    outputs=['y'],
+    upper=0,
+)
+x = np.random.randint(10, size=(4, 5)).astype(np.int64)
+k = np.array(6).astype(np.int64)
+# X:
+#  [[4, 7, 3, 7, 9],
+#   [1, 2, 8, 6, 9],
+#   [9, 4, 1, 8, 7],
+#   [4, 3, 4, 2, 4]]
+# expect result:
+#  [[4, 7, 3, 7, 9],
+#   [1, 2, 8, 6, 9],
+#   [9, 4, 1, 8, 7],
+#   [4, 3, 4, 2, 4]]
+y = tril_reference_implementation(x, int(k))
+expect(node, inputs=[x, k], outputs=[y], name='test_tril_out_pos')
+```
+
+</details>
+<details>
+<summary>tril_pos</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x', 'k'],
+    outputs=['y'],
+    upper=0,
+)
+
+x = np.random.randint(10, size=(4, 5)).astype(np.int64)
+k = np.array(2).astype(np.int64)
+# X:
+#  [[4, 7, 3, 7, 9],
+#   [1, 2, 8, 6, 9],
+#   [9, 4, 1, 8, 7],
+#   [4, 3, 4, 2, 4]]
+# expect result:
+#  [[4, 7, 3, 0, 0],
+#   [1, 2, 8, 6, 0],
+#   [9, 4, 1, 8, 7],
+#   [4, 3, 4, 2, 4]]
+y = tril_reference_implementation(x, int(k))
+expect(node, inputs=[x, k], outputs=[y], name='test_tril_pos')
+```
+
+</details>
+<details>
+<summary>tril_square</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x'],
+    outputs=['y'],
+    upper=0,
+)
+
+x = np.random.randint(10, size=(2, 3, 3)).astype(np.int64)
+# X:
+# [[[0, 4, 3],
+#   [2, 0, 9],
+#   [8, 2, 5]],
+#
+#  [[2, 7, 2],
+#   [2, 6, 0],
+#   [2, 6, 5]]]
+# expect result:
+# [[[0, 0, 0],
+#   [2, 0, 0],
+#   [8, 2, 5]],
+#
+#  [[2, 0, 0],
+#   [2, 6, 0],
+#   [2, 6, 5]]]
+y = tril_reference_implementation(x)
+expect(node, inputs=[x], outputs=[y], name='test_tril_square')
+```
+
+</details>
+<details>
+<summary>tril_square_neg</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x', 'k'],
+    outputs=['y'],
+    upper=0,
+)
+
+x = np.random.randint(10, size=(2, 3, 3)).astype(np.int64)
+k = np.array(-1).astype(np.int64)
+# X:
+# [[[0, 4, 3],
+#   [2, 0, 9],
+#   [8, 2, 5]],
+#
+#  [[2, 7, 2],
+#   [2, 6, 0],
+#   [2, 6, 5]]]
+# expect result:
+# [[[0, 0, 0],
+#   [2, 0, 0],
+#   [8, 2, 0]],
+#
+#  [[0, 0, 0],
+#   [2, 0, 0],
+#   [2, 6, 0]]]
+y = tril_reference_implementation(x, int(k))
+expect(node, inputs=[x, k], outputs=[y], name='test_tril_square_neg')
+```
+
+</details>
+<details>
+<summary>tril_zero</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x', 'k'],
+    outputs=['y'],
+    upper=0,
+)
+
+x = np.random.randint(10, size=(3, 0, 5)).astype(np.int64)
+k = np.array(6).astype(np.int64)
+# X:
+# []
+# expect result:
+# []
+y = tril_reference_implementation(x, int(k))
+expect(node, inputs=[x, k], outputs=[y], name='test_tril_zero')
+```
+
+</details>
+<details>
+<summary>triu</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x'],
+    outputs=['y'],
+)
+
+x = np.random.randint(10, size=(4, 5)).astype(np.int64)
+# X:
+#  [[4, 7, 3, 7, 9],
+#   [1, 2, 8, 6, 9],
+#   [9, 4, 0, 8, 7],
+#   [4, 3, 4, 2, 4]]
+# expect result:
+#  [[4, 7, 3, 7, 9],
+#   [0, 2, 8, 6, 9],
+#   [0, 0, 0, 8, 7],
+#   [0, 0, 0, 2, 4]]
+y = triu_reference_implementation(x)
+expect(node, inputs=[x], outputs=[y], name='test_triu')
+```
+
+</details>
+<details>
+<summary>triu_neg</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x', 'k'],
+    outputs=['y'],
+)
+
+x = np.random.randint(10, size=(4, 5)).astype(np.int64)
+k = np.array(-1).astype(np.int64)
+# X:
+#  [[4, 7, 3, 7, 9],
+#   [1, 2, 8, 6, 9],
+#   [9, 4, 0, 8, 7],
+#   [4, 3, 4, 2, 4]]
+# expect result:
+#  [[4, 7, 3, 7, 9],
+#   [1, 2, 8, 6, 9],
+#   [0, 4, 0, 8, 7],
+#   [0, 0, 4, 2, 4]]
+y = triu_reference_implementation(x, int(k))
+expect(node, inputs=[x, k], outputs=[y], name='test_triu_neg')
+```
+
+</details>
+<details>
+<summary>triu_one_row</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x', 'k'],
+    outputs=['y'],
+)
+
+x = np.random.randint(10, size=(3, 1, 5)).astype(np.int64)
+k = np.array(1).astype(np.int64)
+# X:
+# [[[1, 4, 9, 7, 1]],
+#
+#  [[9, 2, 8, 8, 4]],
+#
+#  [[3, 9, 7, 4, 2]]]
+# expect result:
+# [[[0, 4, 9, 7, 1]],
+#
+#  [[0, 2, 8, 8, 4]],
+#
+#  [[0, 9, 7, 4, 2]]]
+y = triu_reference_implementation(x, int(k))
+expect(node, inputs=[x, k], outputs=[y], name='test_triu_one_row')
+```
+
+</details>
+<details>
+<summary>triu_out_neg_out</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x', 'k'],
+    outputs=['y'],
+)
+
+x = np.random.randint(10, size=(4, 5)).astype(np.int64)
+k = np.array(-7).astype(np.int64)
+# X:
+#  [[4, 7, 3, 7, 9],
+#   [1, 2, 8, 6, 9],
+#   [9, 4, 0, 8, 7],
+#   [4, 3, 4, 2, 4]]
+# expect result:
+#  [[4, 7, 3, 7, 9],
+#   [1, 2, 8, 6, 9],
+#   [9, 4, 0, 8, 7],
+#   [4, 3, 4, 2, 4]]
+y = triu_reference_implementation(x, int(k))
+expect(node, inputs=[x, k], outputs=[y], name='test_triu_out_neg_out')
+```
+
+</details>
+<details>
+<summary>triu_out_pos</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x', 'k'],
+    outputs=['y'],
+)
+
+x = np.random.randint(10, size=(4, 5)).astype(np.int64)
+k = np.array(6).astype(np.int64)
+# X:
+#  [[4, 7, 3, 7, 9],
+#   [1, 2, 8, 6, 9],
+#   [9, 4, 0, 8, 7],
+#   [4, 3, 4, 2, 4]]
+# expect result:
+#  [[0, 0, 0, 0, 0],
+#   [0, 0, 0, 0, 0],
+#   [0, 0, 0, 0, 0],
+#   [0, 0, 0, 0, 0]]
+y = triu_reference_implementation(x, int(k))
+expect(node, inputs=[x, k], outputs=[y], name='test_triu_out_pos')
+```
+
+</details>
+<details>
+<summary>triu_pos</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x', 'k'],
+    outputs=['y'],
+)
+
+x = np.random.randint(10, size=(4, 5)).astype(np.int64)
+k = np.array(2).astype(np.int64)
+# X:
+#  [[4, 7, 3, 7, 9],
+#   [1, 2, 8, 6, 9],
+#   [9, 4, 0, 8, 7],
+#   [4, 3, 4, 2, 4]]
+# expect result:
+#  [[0, 0, 3, 7, 9],
+#   [0, 0, 0, 6, 9],
+#   [0, 0, 0, 0, 7],
+#   [0, 0, 0, 0, 0]]
+y = triu_reference_implementation(x, int(k))
+expect(node, inputs=[x, k], outputs=[y], name='test_triu_pos')
+```
+
+</details>
+<details>
+<summary>triu_square</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x'],
+    outputs=['y'],
+)
+
+x = np.random.randint(10, size=(2, 3, 3)).astype(np.int64)
+y = triu_reference_implementation(x)
+# X:
+# [[[4, 6, 9],
+#   [7, 5, 4],
+#   [8, 1, 2]],
+#
+#  [[1, 4, 9],
+#   [9, 6, 3],
+#   [8, 9, 8]]]
+# expect result:
+# [[[4, 6, 9],
+#   [0, 5, 4],
+#   [0, 0, 2]],
+#
+#  [[1, 4, 9],
+#   [0, 6, 3],
+#   [0, 0, 8]]]
+expect(node, inputs=[x], outputs=[y], name='test_triu_square')
+```
+
+</details>
+<details>
+<summary>triu_square_neg</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x', 'k'],
+    outputs=['y'],
+)
+
+x = np.random.randint(10, size=(2, 3, 3)).astype(np.int64)
+k = np.array(-1).astype(np.int64)
+# X:
+# [[[4, 6, 9],
+#   [7, 5, 4],
+#   [8, 1, 2]],
+#
+#  [[1, 4, 9],
+#   [9, 6, 3],
+#   [8, 9, 8]]]
+# expect result:
+# [[[4, 6, 9],
+#   [7, 5, 4],
+#   [0, 1, 2]],
+#
+#  [[1, 4, 9],
+#   [9, 6, 3],
+#   [0, 9, 8]]]
+y = triu_reference_implementation(x, int(k))
+expect(node, inputs=[x, k], outputs=[y], name='test_triu_square_neg')
+```
+
+</details>
+<details>
+<summary>triu_zero</summary>
+
+```python
+node = onnx.helper.make_node(
+    'Trilu',
+    inputs=['x', 'k'],
+    outputs=['y'],
+)
+
+x = np.random.randint(10, size=(0, 5)).astype(np.int64)
+k = np.array(6).astype(np.int64)
+# X:
+# []
+# expect result:
+# []
+y = triu_reference_implementation(x, int(k))
+expect(node, inputs=[x, k], outputs=[y], name='test_triu_zero')
+```
+
+</details>
+
+
 ### Unique
 There are 5 test cases, listed as following:
 <details>
@@ -13401,6 +14113,7 @@ indices = indices[argsorted_indices]
 y = np.take(x, indices, axis=0)
 inverse_indices = np.asarray([inverse_indices_map[i] for i in inverse_indices], dtype=np.int64)
 counts = counts[argsorted_indices]
+indices, inverse_indices, counts = specify_int64(indices, inverse_indices, counts)
 # print(y)
 # [2.0, 1.0, 3.0, 4.0]
 # print(indices)
@@ -13428,6 +14141,7 @@ node_sorted = onnx.helper.make_node(
 
 x = np.array([[1, 0, 0], [1, 0, 0], [2, 3, 4]], dtype=np.float32)
 y, indices, inverse_indices, counts = np.unique(x, True, True, True, axis=0)
+indices, inverse_indices, counts = specify_int64(indices, inverse_indices, counts)
 # print(y)
 # [[1. 0. 0.]
 #  [2. 3. 4.]]
@@ -13457,6 +14171,7 @@ node_sorted = onnx.helper.make_node(
 x = np.array([[[1., 1.], [0., 1.], [2., 1.], [0., 1.]],
               [[1., 1.], [0., 1.], [2., 1.], [0., 1.]]], dtype=np.float32)
 y, indices, inverse_indices, counts = np.unique(x, True, True, True, axis=1)
+indices, inverse_indices, counts = specify_int64(indices, inverse_indices, counts)
 # print(y)
 # [[[0. 1.]
 #  [1. 1.]
@@ -13488,6 +14203,7 @@ node_sorted = onnx.helper.make_node(
 
 x = np.array([[1, 0, 0], [1, 0, 0], [2, 3, 3]], dtype=np.float32)
 y, indices, inverse_indices, counts = np.unique(x, True, True, True, axis=-1)
+indices, inverse_indices, counts = specify_int64(indices, inverse_indices, counts)
 # print(y)
 # [[0. 1.]
 #  [0. 1.]
@@ -13515,6 +14231,7 @@ node_sorted = onnx.helper.make_node(
 
 x = np.array([2.0, 1.0, 1.0, 3.0, 4.0, 3.0], dtype=np.float32)
 y, indices, inverse_indices, counts = np.unique(x, True, True, True)
+indices, inverse_indices, counts = specify_int64(indices, inverse_indices, counts)
 expect(node_sorted, inputs=[x], outputs=[y, indices, inverse_indices, counts], name='test_unique_sorted_without_axis')
 ```
 

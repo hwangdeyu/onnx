@@ -1,5 +1,7 @@
-// Copyright (c) ONNX Project Contributors.
-// Licensed under the MIT license.
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 
 #include <functional>
 #include "onnx/defs/schema.h"
@@ -159,16 +161,16 @@ ONNX_OPERATOR_SET_SCHEMA(
         "1 for the first maximum value, and 0 for all others")));
 
 static const char* Mod_doc_10 = R"DOC(
-  Performs element-wise binary modulus (with Numpy-style broadcasting support). 
+  Performs element-wise binary modulus (with Numpy-style broadcasting support).
     The sign of the remainder is the same as that of the Divisor.
-  
-    Mod operator can also behave like C fmod() or numpy.fmod. In this case, the sign of the remainder however, will be the same as the Dividend 
+
+    Mod operator can also behave like C fmod() or numpy.fmod. In this case, the sign of the remainder however, will be the same as the Dividend
     (in contrast to integer mod). To force a behavior like numpy.fmod() an 'fmod' Attribute is provided.
-    This attribute is set to 0 by default causing the behavior to be like integer mod. 
+    This attribute is set to 0 by default causing the behavior to be like integer mod.
     Setting this attribute to 1 causes the remainder to be calculated similar to that of numpy.fmod().
 
     If the input type is floating point, then `fmod` attribute must be set to 1.
-  
+
     In case of dividend being zero, the results will be platform dependent.
 
   This operator supports **multidirectional (i.e., Numpy-style) broadcasting**; for more details please check [the doc](Broadcasting.md).
@@ -336,6 +338,42 @@ ONNX_OPERATOR_SET_SCHEMA(
         .TypeConstraint(
             "T",
             {"tensor(float16)", "tensor(float)", "tensor(double)"},
+            "Constrain input and output types to float tensors.")
+        .TypeAndShapeInferenceFunction(propagateShapeAndTypeFromFirstInput));
+
+static const char* Relu_ver13_doc = R"DOC(
+Relu takes one input data (Tensor<T>) and produces one output data
+(Tensor<T>) where the rectified linear function, y = max(0, x), is applied to
+the tensor elementwise.
+)DOC";
+
+ONNX_OPERATOR_SET_SCHEMA(
+    Relu,
+    13,
+    OpSchema()
+        .SetDoc(Relu_ver13_doc)
+        .Input(0,
+            "X",
+            "Input tensor",
+            "T",
+            OpSchema::Single,
+            true,
+            1,
+            OpSchema::Differentiable)
+        .Output(0,
+            "Y",
+            "Output tensor",
+            "T",
+            OpSchema::Single,
+            true,
+            1,
+            OpSchema::Differentiable)
+        .TypeConstraint(
+            "T",
+            {"tensor(float16)",
+             "tensor(float)",
+             "tensor(double)",
+             "tensor(bfloat16)"},
             "Constrain input and output types to float tensors.")
         .TypeAndShapeInferenceFunction(propagateShapeAndTypeFromFirstInput));
 
@@ -824,9 +862,9 @@ ONNX_OPERATOR_SET_SCHEMA(
             const auto& shape_initializer_shape =
                 ctx.getInputType(1)->tensor_type().shape();
             if (shape_initializer_shape.dim_size() != 1 ||
-                shape_initializer->data_type() != TensorProto::INT64)
-              fail_shape_inference(
-                  "'shape' input must be 1D tensor of type INT64");
+                shape_initializer->data_type() != TensorProto::INT64) {
+                    fail_shape_inference("'shape' input must be 1D tensor of type INT64");
+                }
 
             const auto& input_shape =
                 ctx.getInputType(0)->tensor_type().shape();
@@ -889,6 +927,89 @@ ONNX_OPERATOR_SET_SCHEMA(
             "Constrain input and output types to all numeric tensors.")
         .TypeAndShapeInferenceFunction(propagateShapeAndTypeFromFirstInput));
 
+static const char* CumSum_ver11_doc = R"DOC(
+Performs cumulative sum of the input elements along the given axis.
+By default, it will do the sum inclusively meaning the first element is copied as is.
+Through an `exclusive` attribute, this behavior can change to exclude the first element.
+It can also perform summation in the opposite direction of the axis. For that, set `reverse` attribute to 1.
+
+Example:
+```
+input_x = [1, 2, 3]
+axis=0
+output = [1, 3, 6]
+exclusive=1
+output = [0, 1, 3]
+exclusive=0
+reverse=1
+output = [6, 5, 3]
+exclusive=1
+reverse=1
+output = [5, 3, 0]
+```
+ )DOC";
+
+ONNX_OPERATOR_SET_SCHEMA(
+    CumSum,
+    11,
+    OpSchema()
+        .SetDoc(CumSum_ver11_doc)
+        .Attr(
+            "exclusive",
+            "If set to 1 will return exclusive sum in which the top element is not included."
+            " In other terms, if set to 1, the j-th output element would be the sum of the first (j-1) elements."
+            " Otherwise, it would be the sum of the first j elements.",
+            AttributeProto::INT,
+            static_cast<int64_t>(0))
+        .Attr(
+            "reverse",
+            "If set to 1 will perform the sums in reverse direction.",
+            AttributeProto::INT,
+            static_cast<int64_t>(0))
+        .Input(
+            0,
+            "x",
+            "An input tensor that is to be processed.",
+            "T",
+            OpSchema::Single,
+            true,
+            1,
+            OpSchema::Differentiable)
+        .Input(
+            1,
+            "axis",
+            "A 0-D tensor. Must be in the range [-rank(x), rank(x)-1]. "
+            "Negative value means counting dimensions from the back.",
+            "T2",
+            OpSchema::Single,
+            true,
+            1,
+            OpSchema::NonDifferentiable)
+        .Output(
+            0,
+            "y",
+            "Output tensor of the same type as 'x' with cumulative sums of the x's elements",
+            "T",
+            OpSchema::Single,
+            true,
+            1,
+            OpSchema::Differentiable)
+        .TypeConstraint(
+            "T",
+            {"tensor(uint32)",
+             "tensor(uint64)",
+             "tensor(int32)",
+             "tensor(int64)",
+             "tensor(float)",
+             "tensor(double)"},
+            "Input can be of any tensor type.")
+        .TypeConstraint(
+            "T2",
+            {"tensor(int32)", "tensor(int64)"},
+            "axis tensor can be int32 or int64 only")
+        .TypeAndShapeInferenceFunction(
+            ONNX_NAMESPACE::propagateShapeAndTypeFromFirstInput));
+
 static const char* NegativeLogLikelihoodLoss_ver12_doc = R"DOC(
 A NegativeLogLikelihoodLoss operator computes (weighted) negative log likelihood loss.
 Its "input" tensor has the shape of (N, C, d1, d2, ..., dk) where k >= 0.
@@ -900,7 +1021,7 @@ The loss value for input[n, :, d_1, d_2,...d_k] being classified as class c = ta
 When an optional "weight" is provided, the sample loss is calculated as:
     loss[n][d_1][d_2]...[d_k] = -input[n][c][d_1][d_2]...[d_k] * weight[c].
 loss is zero for the case when target-value equals ignore_index.
-    
+
     loss[n][d_1][d_2]...[d_k] = 0, when target[n][d_1][d_2]...[d_k] = ignore_index
 If "reduction" attribute is set to "none", the operator's output will be the above loss with shape (N, d1, d2, ..., dk).
 If "reduction" attribute is set to "mean" (the default attribute value), the output loss is (weight) averaged:
@@ -1261,11 +1382,11 @@ ONNX_OPERATOR_SET_SCHEMA(
             const int target_rank = static_cast<int>(target_shape.dim_size());
 
             if (input_rank < 2) {
-              fail_shape_inference("Input rank must be >= 2.")
+              fail_shape_inference("Input rank must be >= 2.");
             }
             if (target_rank != input_rank - 1) {
               fail_shape_inference(
-                  "Target rank must be 1 less than the input rank.")
+                  "Target rank must be 1 less than the input rank.");
             }
 
             // match input dimensions (N, C, d1, ..., dk) with target
@@ -1277,14 +1398,15 @@ ONNX_OPERATOR_SET_SCHEMA(
               if (input_dim.has_dim_value() && target_dim.has_dim_value() &&
                   input_dim.dim_value() != target_dim.dim_value())
                 fail_shape_inference(
-                    "Input and target dimension value mismatch.")
+                    "Input and target dimension value mismatch.");
             }
 
             if (ctx.getNumInputs() == 3 && hasInputShape(ctx, 2)) {
               const TensorShapeProto& weight_shape =
                   ctx.getInputType(2)->tensor_type().shape();
-              if (weight_shape.dim_size() != 1)
-                fail_shape_inference("Weight rank must be 1.")
+              if (weight_shape.dim_size() != 1) {
+                fail_shape_inference("Weight rank must be 1.");
+              }
             }
 
             TensorShapeProto* output_shape =
@@ -2964,11 +3086,13 @@ ONNX_OPERATOR_SET_SCHEMA(
           int64_t axis = getAttribute(ctx, "axis", -1);
           if (axis < 0)
             axis += rank;
-          if (axis < 0 || axis >= rank)
+          if (axis < 0 || axis >= rank) {
             fail_shape_inference("Invalid value for attribute axis");
+          }
           int64_t k = getAttribute(ctx, "k", -1);
-          if (k <= 0)
+          if (k <= 0) {
             fail_shape_inference("Invalid value for attribute k");
+          }
           // TODO: unclear what results should be if axis has less than k
           // elements.
           TensorShapeProto result_shape = input_shape;
@@ -2985,7 +3109,7 @@ shape [a_1, a_2, ..., a_n, r] and integer argument k, return two outputs:
   -Index tensor of shape [a_1, a_2, ..., a_{axis-1}, k, a_{axis+1}, ... a_n] which
    contains the indices of the top k elements (original indices from the input
    tensor).
-   
+
 Given two equivalent values, this operator uses the indices along the axis  as
  a tiebreaker. That is, the element with the lower index will appear first.
 )DOC";
@@ -3039,8 +3163,9 @@ ONNX_OPERATOR_SET_SCHEMA(
           int64_t axis = getAttribute(ctx, "axis", -1);
           if (axis < 0)
             axis += rank;
-          if (axis < 0 || axis >= rank)
+          if (axis < 0 || axis >= rank) {
             fail_shape_inference("Invalid value for attribute axis");
+          }
 
           const auto& axis_dim = input_shape.dim(static_cast<int>(axis));
           const auto* k = ctx.getInputData(1);
@@ -3053,18 +3178,20 @@ ONNX_OPERATOR_SET_SCHEMA(
           // should be enforced)
           if (nullptr != k && axis_dim.has_dim_value()) {
             int64_t k_value = 0;
-            if (k->dims_size() != 1 || k->dims(0) != 1)
-              fail_shape_inference(
-                  "K input must be a one-dimensional tensor of size 1.");
+            if (k->dims_size() != 1 || k->dims(0) != 1) {
+              fail_shape_inference("K input must be a one-dimensional tensor of size 1.");
+            }
+
             if (k->data_type() == TensorProto::INT64) {
               const auto& data = ParseData<int64_t>(k);
               k_value = data[0];
-            } else
+            } else {
               fail_shape_inference("K input must be of type int64.");
+            }
 
-            if (axis_dim.dim_value() < k_value)
-              fail_shape_inference(
-                  "Axis has less than the requested k elements.");
+            if (axis_dim.dim_value() < k_value) {
+                fail_shape_inference("Axis has less than the requested k elements.");
+            }
 
             TensorShapeProto result_shape = input_shape;
             result_shape.mutable_dim(static_cast<int>(axis))

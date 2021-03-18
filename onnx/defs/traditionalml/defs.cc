@@ -1,5 +1,7 @@
-// Copyright (c) ONNX Project Contributors.
-// Licensed under the MIT license.
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 
 #include "onnx/defs/schema.h"
 
@@ -116,7 +118,7 @@ static const char* CategoryMapper_ver1_doc = R"DOC(
     Converts strings to integers and vice versa.<br>
     Two sequences of equal length are used to map between integers and strings,
     with strings and integers at the same index detailing the mapping.<br>
-    Each operator converts either integers to strings or strings to integers, depending 
+    Each operator converts either integers to strings or strings to integers, depending
     on which default value attribute is provided. Only one default value attribute
     should be defined.<br>
     If the string default value is set, it will convert integers to strings.
@@ -389,10 +391,12 @@ ONNX_ML_OPERATOR_SET_SCHEMA(
         .Attr("default_float", "A float.", AttributeProto::FLOAT, -0.f)
         .TypeAndShapeInferenceFunction([](InferenceContext& ctx) {
           // Label encoder is one-to-one mapping.
-          if (ctx.getNumInputs() != 1)
+          if (ctx.getNumInputs() != 1) {
             fail_shape_inference("Label encoder has only one input.");
-          if (ctx.getNumOutputs() != 1)
+          }
+          if (ctx.getNumOutputs() != 1) {
             fail_shape_inference("Label encoder has only one output.");
+          }
 
           // Load all key_* attributes.
           std::vector<std::string> keys_strings;
@@ -408,22 +412,21 @@ ONNX_ML_OPERATOR_SET_SCHEMA(
           // Check if only one keys_* attribute is set.
           if (static_cast<int>(keys_strings_result) +
                   static_cast<int>(keys_int64s_result) +
-                  static_cast<int>(keys_floats_result) !=
-              1)
-            fail_shape_inference(
-                "Only one of keys_*'s can be set in label encoder.");
+                  static_cast<int>(keys_floats_result) != 1) {
+                fail_shape_inference("Only one of keys_*'s can be set in label encoder.");
+            }
 
           // Check if the specified keys_* matches input type.
           auto input_elem_type = ctx.getInputType(0)->tensor_type().elem_type();
-          if (keys_strings_result && input_elem_type != TensorProto::STRING)
-            fail_shape_inference(
-                "Input type is not string tensor but key_strings is set");
-          if (keys_int64s_result && input_elem_type != TensorProto::INT64)
-            fail_shape_inference(
-                "Input type is not int64 tensor but keys_int64s is set");
-          if (keys_floats_result && input_elem_type != TensorProto::FLOAT)
-            fail_shape_inference(
-                "Input type is not float tensor but keys_floats is set");
+          if (keys_strings_result && input_elem_type != TensorProto::STRING) {
+            fail_shape_inference("Input type is not string tensor but key_strings is set");
+          }
+          if (keys_int64s_result && input_elem_type != TensorProto::INT64) {
+            fail_shape_inference("Input type is not int64 tensor but keys_int64s is set");
+          }
+          if (keys_floats_result && input_elem_type != TensorProto::FLOAT) {
+            fail_shape_inference("Input type is not float tensor but keys_floats is set");
+          }
 
           // Load all values_* attributes.
           std::vector<std::string> values_strings;
@@ -439,10 +442,9 @@ ONNX_ML_OPERATOR_SET_SCHEMA(
           // Check if only one values_* attribute is set.
           if (static_cast<int>(values_strings_result) +
                   static_cast<int>(values_int64s_result) +
-                  static_cast<int>(values_floats_result) !=
-              1)
-            fail_shape_inference(
-                "Only one of values_*'s can be set in label encoder.");
+                  static_cast<int>(values_floats_result) != 1) {
+                fail_shape_inference("Only one of values_*'s can be set in label encoder.");
+            }
 
           // Assign output type based on the specified values_*.
           auto output_elem_type = ctx.getOutputType(0)->mutable_tensor_type();
@@ -658,9 +660,9 @@ ONNX_ML_OPERATOR_SET_SCHEMA(
 
 static const char* OneHotEncoder_ver1_doc = R"DOC(
     Replace each input element with an array of ones and zeros, where a single
-    one is placed at the index of the category that was passed in. The total category count 
+    one is placed at the index of the category that was passed in. The total category count
     will determine the size of the extra dimension of the output array Y.<br>
-    For example, if we pass a tensor with a single value of 4, and a category count of 8, 
+    For example, if we pass a tensor with a single value of 4, and a category count of 8,
     the output will be a tensor with ``[0,0,0,0,1,0,0,0]``.<br>
     This operator assumes every input feature is from the same set of categories.<br>
     If the input is a tensor of float, int32, or double, the data will be cast
@@ -871,7 +873,7 @@ ONNX_ML_OPERATOR_SET_SCHEMA(
 
 static const char* TreeEnsembleClassifier_ver1_doc = R"DOC(
     Tree Ensemble classifier.  Returns the top class for each of N inputs.<br>
-    The attributes named 'nodes_X' form a sequence of tuples, associated by 
+    The attributes named 'nodes_X' form a sequence of tuples, associated by
     index into the sequences, which must all be of equal length. These tuples
     define the nodes.<br>
     Similarly, all fields prefixed with 'class_' are tuples of votes at the leaves.

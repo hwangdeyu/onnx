@@ -1,3 +1,7 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #pragma once
 
 #include "onnx/defs/function.h"
@@ -17,13 +21,13 @@ struct GraphInferenceContext {
       : outer_scope_value_types_by_name{&outer_scope_value_types_by_name_in},
         opset_imports{opset_imports_in},
         schema_registry{schema_registry_in} {}
-        
+
 
   const std::unordered_map<std::string, TypeProto*>*
       outer_scope_value_types_by_name;
   const std::unordered_map<std::string, int> opset_imports;
   const ISchemaRegistry* schema_registry;
-  
+
 };
 
 class GraphInferencerImpl : public GraphInferencer {
@@ -90,16 +94,14 @@ struct InferenceContextImpl : public InferenceContext {
 
   const TypeProto* getInputType(size_t index) const override {
     if (index >= allInputTypes_.size()) {
-      throw std::runtime_error(
-          "input " + ONNX_NAMESPACE::to_string(index) + " is out of bounds");
+      ONNX_THROW("input " + ONNX_NAMESPACE::to_string(index) + " is out of bounds");
     }
     return allInputTypes_[index];
   }
 
   const TensorProto* getInputData(size_t index) const override {
     if (index >= allInputData_.size()) {
-      throw std::runtime_error(
-          "input " + ONNX_NAMESPACE::to_string(index) + " is out of bounds");
+      ONNX_THROW("input " + ONNX_NAMESPACE::to_string(index) + " is out of bounds");
     }
     return allInputData_[index];
   }
@@ -110,8 +112,7 @@ struct InferenceContextImpl : public InferenceContext {
 
   TypeProto* getOutputType(size_t index) override {
     if (index >= allOutputTypes_.size()) {
-      throw std::runtime_error(
-          "output " + ONNX_NAMESPACE::to_string(index) + " is out of bounds");
+      ONNX_THROW("output " + ONNX_NAMESPACE::to_string(index) + " is out of bounds");
     }
     return &allOutputTypes_[index];
   }
@@ -185,21 +186,24 @@ void mergeShapesAndTypes(
 void InferShapes(
     ModelProto& m,
     const bool check_type = false,
-    const ISchemaRegistry* schema_registry = OpSchemaRegistry::Instance()
+    const ISchemaRegistry* schema_registry = OpSchemaRegistry::Instance(),
+    const int error_mode = 0
     );
 
 void InferShapes(
     GraphProto* g,
     const std::unordered_map<std::string, int>& opset_imports,
     const bool check_type = false,
-    const ISchemaRegistry* schema_registry = OpSchemaRegistry::Instance()
+    const ISchemaRegistry* schema_registry = OpSchemaRegistry::Instance(),
+    const int error_mode = 0
     );
 
 void InferShapes(
     const std::string& model_path,
     const bool check_type = false,
     const std::string& save_path = "",
-    const ISchemaRegistry* schema_registry = OpSchemaRegistry::Instance()
+    const ISchemaRegistry* schema_registry = OpSchemaRegistry::Instance(),
+    const int error_mode = 0
     );
 
 void InferShapeForFunctionNode(

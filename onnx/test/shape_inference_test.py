@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -46,7 +48,7 @@ class TestShapeInference(unittest.TestCase):
     def _inferred(self, graph, **kwargs):  # type: (GraphProto, **Any) -> ModelProto
         kwargs[str('producer_name')] = 'onnx-test'
         orig_model = helper.make_model(graph, **kwargs)
-        inferred_model = onnx.shape_inference.infer_shapes(orig_model)
+        inferred_model = onnx.shape_inference.infer_shapes(orig_model, strict_mode=True)
         checker.check_model(inferred_model)
         return inferred_model
 
@@ -71,7 +73,7 @@ class TestShapeInference(unittest.TestCase):
         graph = self._make_graph(
             ['y'],
             [], [])
-        self.assertRaises(RuntimeError, self._inferred, graph)
+        self.assertRaises(onnx.shape_inference.InferenceError, self._inferred, graph)
 
     def _identity_prop(self, op, **kwargs):  # type: (Text, **Any) -> None
         graph = self._make_graph(
@@ -106,14 +108,14 @@ class TestShapeInference(unittest.TestCase):
             [("X", TensorProto.FLOAT, (2, 3, 4))],
             [make_node("Transpose", ["X"], ["Y"], perm=[1, 0, 2])],
             [make_tensor_value_info("Y", TensorProto.FLOAT, (5, 5, 5))])
-        self.assertRaises(RuntimeError, self._inferred, graph)
+        self.assertRaises(onnx.shape_inference.InferenceError, self._inferred, graph)
 
     def test_transpose_preexisting_incorrect_type(self):  # type: () -> None
         graph = self._make_graph(
             [("X", TensorProto.FLOAT, (2, 3, 4))],
             [make_node("Transpose", ["X"], ["Y"], perm=[1, 0, 2])],
             [make_tensor_value_info("Y", TensorProto.STRING, (3, 2, 4))])
-        self.assertRaises(RuntimeError, self._inferred, graph)
+        self.assertRaises(onnx.shape_inference.InferenceError, self._inferred, graph)
 
     def _make_matmul_test_all_dims_known(self, shape1, shape2):  # type: (Sequence[int], Sequence[int]) -> None
         expected_out_shape = np.matmul(np.arange(np.product(shape1)).reshape(shape1),
@@ -181,7 +183,7 @@ class TestShapeInference(unittest.TestCase):
              ("z", TensorProto.FLOAT, (None, None, None))],
             [make_node("Concat", ['x', 'y', 'z'], ['out'], axis=0)],
             [])
-        self.assertRaises(RuntimeError, self._inferred, graph)
+        self.assertRaises(onnx.shape_inference.InferenceError, self._inferred, graph)
 
     def test_concat_3d_axis_2(self):  # type: () -> None
         graph = self._make_graph(
@@ -231,6 +233,24 @@ class TestShapeInference(unittest.TestCase):
             [],
             initializer=[make_tensor('shape', TensorProto.INT64, (3,), (0, 3, -1))])
         self._assert_inferred(graph, [make_tensor_value_info('y', TensorProto.UINT8, (2, 3, 4))])
+
+    def test_reshape_static_shape_zero(self):  # type: () -> None
+        graph = self._make_graph(
+            [('x', TensorProto.UINT8, (1, 1, 1)),
+             ('shape', TensorProto.INT64, (3,))],
+            [make_node("Reshape", ['x', 'shape'], ['y'])],
+            [],
+            initializer=[make_tensor('shape', TensorProto.INT64, (3,), (0, 1, 1))])
+        self._assert_inferred(graph, [make_tensor_value_info('y', TensorProto.UINT8, (1, 1, 1))])
+
+    def test_reshape_static_shape_allowzero(self):  # type: () -> None
+        graph = self._make_graph(
+            [('x', TensorProto.UINT8, (1, 0, 0)),
+             ('shape', TensorProto.INT64, (3,))],
+            [make_node("Reshape", ['x', 'shape'], ['y'], allowzero=1)],
+            [],
+            initializer=[make_tensor('shape', TensorProto.INT64, (3,), (0, 1, 1))])
+        self._assert_inferred(graph, [make_tensor_value_info('y', TensorProto.UINT8, (0, 1, 1))])
 
     def test_reshape_static_shape_constant(self):  # type: () -> None
         graph = self._make_graph(
@@ -718,6 +738,16 @@ class TestShapeInference(unittest.TestCase):
             [])
         self._assert_inferred(graph, [make_tensor_value_info('z', TensorProto.FLOAT, (30, 50, 7, 6, 4))])
 
+    def test_conv_auto_pads(self):  # type: () -> None
+        graph = self._make_graph(
+            [('x', TensorProto.FLOAT, (30, 4, 7, 6, 4)),
+             ('y', TensorProto.FLOAT, (50, 4, 4, 3, 2))],
+            [make_node('Conv', ['x', 'y'], 'z', auto_pad='SAME_UPPER', strides=[2, 2, 1])],
+            [])
+        self._assert_inferred(
+            graph,
+            [make_tensor_value_info('z', TensorProto.FLOAT, (30, 50, 4, 3, 4))])
+
     def test_conv_auto_pad_dilation(self):  # type: () -> None
         graph = self._make_graph(
             [('x', TensorProto.FLOAT, (30, 4, 65, 64, 63)),
@@ -758,8 +788,33 @@ class TestShapeInference(unittest.TestCase):
             [])
         self._assert_inferred(graph, [make_tensor_value_info('z', TensorProto.FLOAT, None)])
 
+    def test_average_pool_auto_pads(self):  # type: () -> None
+        graph = self._make_graph(
+            [('x', TensorProto.FLOAT, (30, 4, 7, 6, 4))],
+            [make_node('AveragePool', ['x'], 'z', auto_pad='SAME_UPPER', kernel_shape=[4, 3, 2], strides=[2, 2, 1])],
+            [])
+        self._assert_inferred(
+            graph,
+            [make_tensor_value_info('z', TensorProto.FLOAT, (30, 4, 4, 3, 4))])
+
     def test_relu(self):  # type: () -> None
         self._identity_prop('Relu')
+
+    def test_identity(self):  # type: () -> None
+        self._identity_prop('Identity')
+
+    def test_identity_sequence(self):  # type: () -> None
+        graph = self._make_graph(
+            [('input1', TensorProto.FLOAT, (2, 3, 4)),
+             ('input2', TensorProto.FLOAT, (2, 3, 4)),
+             ('input3', TensorProto.FLOAT, (2, 5, 4))],
+            [make_node('SequenceConstruct', ['input1', 'input2', 'input3'], ['in_sequence']),
+             make_node('Identity', ['in_sequence'], ['output_sequence'])],
+            [])
+        self._assert_inferred(
+            graph,
+            [make_sequence_value_info('in_sequence', TensorProto.FLOAT, (2, None, 4)),  # type: ignore
+             make_sequence_value_info('output_sequence', TensorProto.FLOAT, (2, None, 4))])  # type: ignore
 
     def test_add(self):  # type: () -> None
         graph = self._make_graph(
@@ -983,6 +1038,26 @@ class TestShapeInference(unittest.TestCase):
         self._assert_inferred(graph, [
             make_tensor_value_info('all', TensorProto.FLOAT, (seqlen, 2, batchsize, hiddensize)),
             make_tensor_value_info('last', TensorProto.FLOAT, (2, batchsize, hiddensize))])
+
+    def test_rnn_layout(self):  # type: () -> None
+        self._rnn_layout(64, 32, 10, 4)
+        self._rnn_layout(64, 32, 10, 4, 'bidirectional')
+
+    def _rnn_layout(self, seqlen, batchsize, inpsize, hiddensize, direction='forward'):  # type: (int, int, int, int, Text) -> None
+        graph = self._make_graph(
+            [('x', TensorProto.FLOAT, (batchsize, seqlen, inpsize)),
+             ('w', TensorProto.FLOAT, (1, hiddensize, inpsize)),
+             ('r', TensorProto.FLOAT, (1, hiddensize, hiddensize))],
+            [make_node('RNN', ['x', 'w', 'r'], ['all', 'last'], hidden_size=hiddensize,
+                layout=1, direction=direction)],
+            [])
+        if(direction == 'bidirectional'):
+            num_directions = 2
+        else:
+            num_directions = 1
+        self._assert_inferred(graph, [
+            make_tensor_value_info('all', TensorProto.FLOAT, (batchsize, seqlen, num_directions, hiddensize)),
+            make_tensor_value_info('last', TensorProto.FLOAT, (batchsize, num_directions, hiddensize))])
 
     def test_rnn_bidirectional(self):  # type: () -> None
         self._rnn_bidirectional(64, 32, 10, 4)
@@ -1557,7 +1632,17 @@ class TestShapeInference(unittest.TestCase):
              ('B', TensorProto.FLOAT, (1, ))],
             [make_node('ConvTranspose', ['X', 'W', 'B'], 'Y', auto_pad="SAME_UPPER", strides=[1, 1], pads=[0, 1, 1, 0])],
             [])
-        self.assertRaises(RuntimeError, onnx.shape_inference.infer_shapes, helper.make_model(graph))
+        self.assertRaises(onnx.shape_inference.InferenceError, onnx.shape_inference.infer_shapes, helper.make_model(graph), strict_mode=True)
+
+    def test_conv_transpose_auto_pads(self):  # type: () -> None
+        graph = self._make_graph(
+            [('X', TensorProto.FLOAT, (25, 48, 16, 16)),
+             ('W', TensorProto.FLOAT, (48, 32, 3, 3))],
+            [make_node('ConvTranspose', ['X', 'W'], 'Y', auto_pad="SAME_UPPER", strides=[2, 2])],
+            [])
+        self._assert_inferred(
+            graph,
+            [make_tensor_value_info('Y', TensorProto.FLOAT, (25, 32, 32, 32))])
 
     def test_mvn_function_output_shape(self):  # type: () -> None
         graph = self._make_graph(
@@ -3120,7 +3205,7 @@ class TestShapeInference(unittest.TestCase):
              ("z", TensorProto.FLOAT, (2, 3))],
             [make_node('Einsum', ['x', 'y'], ['z'], equation='i,...j, k, l-> i')],
             [])
-        self.assertRaises(RuntimeError, self._inferred, graph)
+        self.assertRaises(onnx.shape_inference.InferenceError, self._inferred, graph)
 
     def test_negative_log_likehood_shape_is_NCdd(self):  # type: () -> None
         N, C = 3, 4
@@ -3207,7 +3292,7 @@ class TestShapeInference(unittest.TestCase):
              ("loss", TensorProto.FLOAT, ())],
             [make_node('NegativeLogLikelihoodLoss', ['input', 'target', 'weight'], ['loss'], reduction='mean')],
             [])
-        self.assertRaises(RuntimeError, self._inferred, graph)
+        self.assertRaises(onnx.shape_inference.InferenceError, self._inferred, graph)
 
     def test_negative_log_likehood_input_weight_shape_mismatch(self):  # type: () -> None
         N, C, d1, d2 = 3, 4, 5, 6
@@ -3285,7 +3370,7 @@ class TestShapeInference(unittest.TestCase):
         # So shape_inference should make use of initializer shapes
         initializer_shape = (8, 7)
         original_model = self.prepare_input_initializer_tensors(initializer_shape, None)
-        inferred_model = onnx.shape_inference.infer_shapes(original_model)
+        inferred_model = onnx.shape_inference.infer_shapes(original_model, strict_mode=True)
 
         # If shape inference fails, it will throw IndexError
         z_tenor = inferred_model.graph.value_info.pop()
@@ -3301,7 +3386,7 @@ class TestShapeInference(unittest.TestCase):
         original_model = self.prepare_input_initializer_tensors(initializer_shape, input_shape)
         original_model.ir_version = 3  # test ir_version < 4
 
-        inferred_model = onnx.shape_inference.infer_shapes(original_model)
+        inferred_model = onnx.shape_inference.infer_shapes(original_model, strict_mode=True)
         z_tenor = inferred_model.graph.value_info.pop()
         z_shape = (z_tenor.type.tensor_type.shape.dim[0].dim_value, z_tenor.type.tensor_type.shape.dim[1].dim_value)
         # If the input is not updated by the initializer, the output shape will keep empty (0, 0)
@@ -3313,28 +3398,62 @@ class TestShapeInference(unittest.TestCase):
         input_shape = (4, 3)
         original_model = self.prepare_input_initializer_tensors(initializer_shape, input_shape)
         # Inferred shape and existing shape differ in dimension 0
-        self.assertRaises(RuntimeError, onnx.shape_inference.infer_shapes, original_model)
+        self.assertRaises(onnx.shape_inference.InferenceError, onnx.shape_inference.infer_shapes, original_model, strict_mode=True)
 
     def test_infer_initializer_input_consistency_all_none(self):  # type: () -> None
         initializer_shape = (8, 7)
         input_shape = (None, None)  # accepatble
         original_model = self.prepare_input_initializer_tensors(initializer_shape, input_shape)
 
-        onnx.shape_inference.infer_shapes(original_model)
+        onnx.shape_inference.infer_shapes(original_model, strict_mode=True)
 
     def test_infer_initializer_input_consistency_single_none(self):  # type: () -> None
         initializer_shape = (8, 7)
         input_shape = (None, 7)  # accepatble
         original_model = self.prepare_input_initializer_tensors(initializer_shape, input_shape)
 
-        onnx.shape_inference.infer_shapes(original_model)
+        onnx.shape_inference.infer_shapes(original_model, strict_mode=True)
 
     def test_infer_initializer_input_consistency_differnt_rank(self):  # type: () -> None
         initializer_shape = (8, 7, 9)
         input_shape = (None, 7)  # accepatble
         original_model = self.prepare_input_initializer_tensors(initializer_shape, input_shape)
         # Inferred shape and existing shape differ in rank: (3) vs (2)
-        self.assertRaises(RuntimeError, onnx.shape_inference.infer_shapes, original_model)
+        self.assertRaises(onnx.shape_inference.InferenceError, onnx.shape_inference.infer_shapes, original_model, strict_mode=True)
+
+    def test_trilu_upper(self):  # type: () -> None
+        graph = self._make_graph(
+            [('x', TensorProto.FLOAT, (3, 4, 5)),
+             ('k', TensorProto.INT64, ())],
+            [make_node('Trilu', ['x', 'k'], ['y'])],
+            [],
+            initializer=[make_tensor('k', TensorProto.INT64, (), (2,))])
+        self._assert_inferred(graph, [make_tensor_value_info('y', TensorProto.FLOAT, (3, 4, 5))])  # type: ignore
+
+    def test_trilu_lower(self):  # type: () -> None
+        graph = self._make_graph(
+            [('x', TensorProto.FLOAT, (3, 4, 5)),
+             ('k', TensorProto.INT64, ())],
+            [make_node('Trilu', ['x', 'k'], ['y'], upper=0)],
+            [],
+            initializer=[make_tensor('k', TensorProto.INT64, (), (10,))])
+        self._assert_inferred(graph, [make_tensor_value_info('y', TensorProto.FLOAT, (3, 4, 5))])  # type: ignore
+
+    def test_trilu_upper_zero(self):  # type: () -> None
+        graph = self._make_graph(
+            [('x', TensorProto.INT64, (0, 5)),
+             ('k', TensorProto.INT64, ())],
+            [make_node('Trilu', ['x', 'k'], ['y'], upper=1)],
+            [],
+            initializer=[make_tensor('k', TensorProto.INT64, (), (5,))])
+        self._assert_inferred(graph, [make_tensor_value_info('y', TensorProto.INT64, (0, 5))])  # type: ignore
+
+    def test_trilu_lower_one(self):  # type: () -> None
+        graph = self._make_graph(
+            [('x', TensorProto.INT32, (3, 1, 5))],
+            [make_node('Trilu', ['x'], ['y'], upper=0)],
+            [],)
+        self._assert_inferred(graph, [make_tensor_value_info('y', TensorProto.INT32, (3, 1, 5))])  # type: ignore
 
 
 if __name__ == '__main__':

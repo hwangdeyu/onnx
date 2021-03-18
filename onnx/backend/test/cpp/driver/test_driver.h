@@ -1,3 +1,7 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include <iostream>
 #include <queue>
 #include <cstdlib>
@@ -61,7 +65,7 @@ struct ResolvedTestData {
   std::vector<ONNX_NAMESPACE::TensorProto> inputs_;
   std::vector<ONNX_NAMESPACE::SequenceProto> seq_inputs_;
   std::vector<ONNX_NAMESPACE::MapProto> map_inputs_;
-  
+
   std::vector<ONNX_NAMESPACE::TensorProto> outputs_;
   std::vector<ONNX_NAMESPACE::SequenceProto> seq_outputs_;
   std::vector<ONNX_NAMESPACE::MapProto> map_outputs_;
@@ -89,7 +93,7 @@ class TestDriver {
   void SetDefaultDir(const std::string& s);
   std::vector<UnsolvedTestCase> testcases_;
   TestDriver(const std::string& default_dir = ".") {
-    default_dir_ = default_dir_;
+    default_dir_ = default_dir;
   }
   /**
    *	Fetch all test cases in target.

@@ -25,6 +25,7 @@ option(ONNX_COVERAGE "Build with coverage instrumentation" OFF)
 option(ONNX_BUILD_TESTS "Build ONNX C++ APIs Tests" OFF)
 option(ONNX_USE_LITE_PROTO "Use lite protobuf instead of full." OFF)
 option(ONNXIFI_ENABLE_EXT "Enable onnxifi extensions." OFF)
+option(ONNX_DISABLE_EXCEPTIONS "Disable exception handling." OFF)
 if(NOT DEFINED ONNX_ML)
   if(DEFINED ENV{ONNX_ML})
     set(DEFAULT_ONNX_ML $ENV{ONNX_ML})
@@ -77,6 +78,40 @@ if(NOT ONNX_NAMESPACE)
   set(ONNX_NAMESPACE "onnx")
 endif()
 
+if(MSVC)
+  if(NOT ONNX_DISABLE_EXCEPTIONS)
+    string(APPEND CMAKE_CXX_FLAGS " /EHsc /wd26812")
+    string(APPEND CMAKE_C_FLAGS " /EHsc /wd26812")
+  endif()
+endif()
+
+if(ONNX_DISABLE_EXCEPTIONS)
+  add_compile_definitions("ONNX_NO_EXCEPTIONS")
+  # Disable C++ exceptions.
+  if(MSVC)
+    string(REGEX REPLACE "/EHsc" "/EHs-c-" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    add_definitions(-D_HAS_EXCEPTIONS=0)
+  else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions -fno-unwind-tables -fno-asynchronous-unwind-tables")
+  endif()
+endif()
+
+if(ONNX_WERROR)
+  if(MSVC)
+    string(APPEND CMAKE_CXX_FLAGS " /WX")
+    string(APPEND CMAKE_C_FLAGS " /WX")
+  else()
+    string(APPEND CMAKE_CXX_FLAGS " -Werror")
+    string(APPEND CMAKE_C_FLAGS " -Werror -Wno-error=incompatible-pointer-types")
+  endif()
+endif()
+
+# find_package Python has replaced PythonInterp and PythonLibs since cmake 3.12
+# Use the following command in the future; now this is only compatible with the latest pybind11
+# find_package(Python ${PY_VERSION} COMPONENTS Interpreter Development REQUIRED)
+find_package(PythonInterp ${PY_VERSION} REQUIRED)
+find_package(PythonLibs ${PY_VERSION})
+
 if(CMAKE_SYSTEM_NAME STREQUAL "AIX")
   set(CMAKE_NO_SYSTEM_FROM_IMPORTED 1)
 endif()
@@ -123,7 +158,7 @@ else()
         NAMES protobuf-lite
         PATHS ${_PROTOBUF_INSTALL_PREFIX}/lib
         NO_DEFAULT_PATH)
-    else(ONNX_USE_LITE_PROTO)
+    else()
       find_library(Protobuf_LIBRARY
         NAMES protobuf
         PATHS ${_PROTOBUF_INSTALL_PREFIX}/lib
@@ -195,11 +230,6 @@ function(RELATIVE_PROTOBUF_GENERATE_CPP NAME SRCS HDRS ROOT_DIR DEPEND)
       file(MAKE_DIRECTORY "${OUTPUT_PROTO_DIR}")
     endif()
 
-    if("${PYTHON_EXECUTABLE}" STREQUAL "")
-      set(_python_exe "python")
-    else()
-      set(_python_exe "${PYTHON_EXECUTABLE}")
-    endif()
     set(GEN_PROTO_ARGS
         -p
         "${ONNX_NAMESPACE}"
@@ -221,7 +251,7 @@ function(RELATIVE_PROTOBUF_GENERATE_CPP NAME SRCS HDRS ROOT_DIR DEPEND)
     endif()
 
     add_custom_command(OUTPUT "${GENERATED_PROTO}"
-                       COMMAND "${_python_exe}" "${GEN_PROTO_PY}"
+                       COMMAND "${PYTHON_EXECUTABLE}" "${GEN_PROTO_PY}"
                                ARGS ${GEN_PROTO_ARGS}
                        DEPENDS ${INFILE}
                        COMMENT "Running gen_proto.py on ${INFILE}"
@@ -239,11 +269,14 @@ function(RELATIVE_PROTOBUF_GENERATE_CPP NAME SRCS HDRS ROOT_DIR DEPEND)
       if(ONNX_GEN_PB_TYPE_STUBS)
         # Haven't figured out how to generate mypy stubs on Windows yet
         if(NOT WIN32)
-          # If onnx was packaged to pypi from Windows, protoc-gen-mypy.py is
-          # missing the +x flag. Add it.
-          execute_process(COMMAND chmod +x ${ROOT_DIR}/tools/protoc-gen-mypy.py)
-          set(PROTOC_MYPY_PLUGIN_FILE ${ROOT_DIR}/tools/protoc-gen-mypy.py)
-        else(NOT WIN32)
+          # use PYTHON_EXECUTABLE to python protoc-gen-mypy.py
+          configure_file(
+            ${ROOT_DIR}/tools/protoc-gen-mypy.sh.in
+            ${ROOT_DIR}/tools/protoc-gen-mypy.sh
+            @ONLY)
+          execute_process(COMMAND chmod +x ${ROOT_DIR}/tools/protoc-gen-mypy.sh)
+          set(PROTOC_MYPY_PLUGIN_FILE ${ROOT_DIR}/tools/protoc-gen-mypy.sh)
+        else()
           set(PROTOC_MYPY_PLUGIN_FILE ${ROOT_DIR}/tools/protoc-gen-mypy.bat)
         endif()
         list(APPEND PROTOC_ARGS
@@ -447,8 +480,6 @@ if(BUILD_ONNX_PYTHON)
   target_link_libraries(onnx_cpp2py_export PRIVATE onnx)
 
   if(MSVC)
-    find_package(PythonInterp ${PY_VERSION} REQUIRED)
-    find_package(PythonLibs ${PY_VERSION} REQUIRED)
     target_link_libraries(onnx_cpp2py_export PRIVATE ${PYTHON_LIBRARIES})
     target_compile_options(onnx_cpp2py_export
                            PRIVATE /MP
@@ -571,9 +602,6 @@ elseif(APPLE)
 
 else()
   target_compile_options(onnx PRIVATE -Wall -Wextra)
-  if(${ONNX_WERROR})
-    target_compile_options(onnx PRIVATE -Werror)
-  endif()
 endif()
 
 if(APPLE)
@@ -648,6 +676,11 @@ target_link_libraries(onnxifi_dummy PUBLIC onnxifi ${CMAKE_DL_LIBS})
 target_compile_definitions(onnxifi_dummy PRIVATE ONNXIFI_BUILD_LIBRARY=TRUE)
 if(MSVC)
   add_msvc_runtime_flag(onnxifi_dummy)
+
+  target_compile_options(onnxifi_dummy
+                         PRIVATE /wd4113 # 'identifier1' differs in parameter
+                                         # lists from 'identifier2'
+                        )
 endif()
 
 include(GNUInstallDirs)
